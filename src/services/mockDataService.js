@@ -373,3 +373,84 @@ export const updateLeaveStatus = async (leaveId, status, adminUserId) => {
   }
   return null;
 };
+
+// Add New Custom Organization
+export const addNewOrganization = ({ name, code, type = 'Company', location = 'Headquarters' }) => {
+  const orgs = getOrganizations();
+  const newOrg = {
+    id: 'ORG-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
+    name: name || 'My Custom Organization',
+    type,
+    code: code ? code.toUpperCase() : 'MYORG',
+    logo: type === 'College' ? '🎓' : '🏢',
+    location: location || 'Main Office',
+    geoFence: { lat: 28.6273, lng: 77.3714, radiusMeters: 500 }
+  };
+  orgs.push(newOrg);
+  localStorage.setItem(ORGS_KEY, JSON.stringify(orgs));
+  return newOrg;
+};
+
+// Delete User / Member
+export const deleteUser = (userId) => {
+  let users = getUsers();
+  users = users.filter(u => u.id !== userId);
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+
+  // Also cleanup attendance & leaves for deleted user
+  let attendance = getAttendanceRecords().filter(a => a.userId !== userId);
+  localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(attendance));
+
+  let leaves = getLeaveRequests().filter(l => l.userId !== userId);
+  localStorage.setItem(LEAVES_KEY, JSON.stringify(leaves));
+  return users;
+};
+
+// Delete Organization
+export const deleteOrganization = (orgId) => {
+  let orgs = getOrganizations().filter(o => o.id !== orgId);
+  localStorage.setItem(ORGS_KEY, JSON.stringify(orgs));
+  return orgs;
+};
+
+// Delete Single Attendance Record
+export const deleteAttendanceRecord = (recordId) => {
+  let records = getAttendanceRecords().filter(r => r.id !== recordId);
+  localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(records));
+  return records;
+};
+
+// Clear All Sample / Dummy Data & Start Fresh with Custom Data
+export const clearAllDummyData = () => {
+  // Keep only current Admin user
+  const users = getUsers();
+  const adminUser = users.find(u => u.role === 'ADMIN') || {
+    id: 'USR-ADMIN-01',
+    orgId: 'ORG-CUSTOM-01',
+    orgName: 'My Organization',
+    rollNumber: 'ADMIN-001',
+    name: 'Administrator',
+    email: 'admin@secureroll.org',
+    role: 'ADMIN',
+    biometricsEnrolled: true,
+    verificationStatus: 'VERIFIED'
+  };
+
+  const customOrg = [
+    {
+      id: adminUser.orgId || 'ORG-CUSTOM-01',
+      name: 'My Custom Organization',
+      type: 'Organization',
+      code: 'MYORG',
+      logo: '🏢',
+      location: 'Primary Center',
+      geoFence: { lat: 28.6273, lng: 77.3714, radiusMeters: 500 }
+    }
+  ];
+
+  localStorage.setItem(ORGS_KEY, JSON.stringify(customOrg));
+  localStorage.setItem(USERS_KEY, JSON.stringify([adminUser]));
+  localStorage.setItem(ATTENDANCE_KEY, JSON.stringify([]));
+  localStorage.setItem(LEAVES_KEY, JSON.stringify([]));
+};
+

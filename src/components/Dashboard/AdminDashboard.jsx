@@ -9,42 +9,99 @@ import jsPDF from 'jspdf';
 
 import { 
   getUsers, getAttendanceRecords, getLeaveRequests, getOrganizations, 
-  updateUserVerification, updateLeaveStatus 
+  updateUserVerification, updateLeaveStatus, addNewOrganization, deleteUser,
+  deleteAttendanceRecord, clearAllDummyData
 } from '../../services/mockDataService';
 
 import { getAuditLogs, decryptSensitiveData } from '../../services/securityService';
 import AttendanceScannerKiosk from '../Attendance/AttendanceScannerKiosk';
 
 export default function AdminDashboard({ user }) {
-  const orgs = getOrganizations();
-  const [selectedOrgId, setSelectedOrgId] = useState(user.orgId || orgs[0]?.id);
+  const [orgsList, setOrgsList] = useState(getOrganizations());
+  const [selectedOrgId, setSelectedOrgId] = useState(user.orgId || orgsList[0]?.id || 'ORG-TECH-01');
   const [activeTab, setActiveTab] = useState('MEMBERS'); // MEMBERS, ATTENDANCE, LEAVES, AUDIT_LOGS, REPORTS
   const [searchTerm, setSearchTerm] = useState('');
   const [revealedAadharId, setRevealedAadharId] = useState(null);
   const [decryptedValue, setDecryptedValue] = useState('');
   const [showKioskModal, setShowKioskModal] = useState(false);
+  const [showAddOrgModal, setShowAddOrgModal] = useState(false);
 
-  // Data
+  // New Org Form
+  const [newOrgName, setNewOrgName] = useState('');
+  const [newOrgCode, setNewOrgCode] = useState('');
+  const [newOrgType, setNewOrgType] = useState('Company');
+
+  // Data State
   const [usersList, setUsersList] = useState(getUsers());
   const [attendanceList, setAttendanceList] = useState(getAttendanceRecords());
   const [leaveList, setLeaveList] = useState(getLeaveRequests());
   const auditLogs = getAuditLogs();
 
-  const currentOrg = orgs.find(o => o.id === selectedOrgId) || orgs[0];
+  const currentOrg = orgsList.find(o => o.id === selectedOrgId) || orgsList[0] || {
+    id: 'ORG-CUSTOM',
+    name: 'My Custom Organization',
+    type: 'Organization',
+    code: 'MYORG',
+    logo: '🏢'
+  };
 
-  // Filtered by selected Organization
-  const orgUsers = usersList.filter(u => u.orgId === selectedOrgId && (
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filtered by selected Organization safely
+  const orgUsers = usersList.filter(u => u && u.orgId === selectedOrgId && (
+    (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.rollNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   ));
 
-  const orgAttendance = attendanceList.filter(a => a.orgId === selectedOrgId && (
-    a.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    a.rollNumber.toLowerCase().includes(searchTerm.toLowerCase())
+  const orgAttendance = attendanceList.filter(a => a && a.orgId === selectedOrgId && (
+    (a.userName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (a.rollNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
   ));
 
-  const orgLeaves = leaveList.filter(l => l.orgId === selectedOrgId);
+  const orgLeaves = leaveList.filter(l => l && l.orgId === selectedOrgId);
+
+  // Create New Organization
+  const handleCreateOrgSubmit = (e) => {
+    e.preventDefault();
+    if (!newOrgName) return;
+    const created = addNewOrganization({
+      name: newOrgName,
+      code: newOrgCode || newOrgName.substring(0, 4).toUpperCase(),
+      type: newOrgType
+    });
+    setOrgsList(getOrganizations());
+    setSelectedOrgId(created.id);
+    setShowAddOrgModal(false);
+    setNewOrgName('');
+    setNewOrgCode('');
+  };
+
+  // Delete Member
+  const handleDeleteMember = (userId) => {
+    if (window.confirm('Are you sure you want to delete this member from your database?')) {
+      const updated = deleteUser(userId);
+      setUsersList(updated);
+      setAttendanceList(getAttendanceRecords());
+      setLeaveList(getLeaveRequests());
+    }
+  };
+
+  // Delete Attendance Record
+  const handleDeleteRecord = (recordId) => {
+    const updated = deleteAttendanceRecord(recordId);
+    setAttendanceList(updated);
+  };
+
+  // Clear All Dummy Sample Data & Use My Own Fresh Data
+  const handleClearSampleData = () => {
+    if (window.confirm('Clear all sample/dummy data and start fresh with your own custom database?')) {
+      clearAllDummyData();
+      setOrgsList(getOrganizations());
+      setUsersList(getUsers());
+      setAttendanceList(getAttendanceRecords());
+      setLeaveList(getLeaveRequests());
+      setSelectedOrgId(getOrganizations()[0]?.id || '');
+    }
+  };
 
   // Toggle Verification for Member
   const handleToggleVerifyUser = async (userId, currentStatus) => {
@@ -148,17 +205,17 @@ export default function AdminDashboard({ user }) {
           </div>
         </div>
 
-        {/* Organization Switcher Dropdown */}
-        <div className="flex items-center gap-3">
+        {/* Organization Switcher & Data Actions */}
+        <div className="flex flex-wrap items-center gap-3">
           <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
             <Building2 className="w-4 h-4 text-cyan-400" /> Switch Org:
           </label>
           <select
             value={selectedOrgId}
             onChange={(e) => setSelectedOrgId(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-bold"
+            className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-bold"
           >
-            {orgs.map(o => (
+            {orgsList.map(o => (
               <option key={o.id} value={o.id}>
                 {o.logo} {o.name}
               </option>
@@ -166,10 +223,26 @@ export default function AdminDashboard({ user }) {
           </select>
 
           <button
-            onClick={() => setShowKioskModal(true)}
-            className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-cyan-500/25 flex items-center gap-2"
+            onClick={() => setShowAddOrgModal(true)}
+            className="py-2 px-3 rounded-xl bg-slate-900 border border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 font-bold text-xs flex items-center gap-1"
+            title="Create your own organization"
           >
-            <Camera className="w-4 h-4" /> Kiosk Scanner Mode
+            ➕ Add Org
+          </button>
+
+          <button
+            onClick={handleClearSampleData}
+            className="py-2 px-3 rounded-xl bg-slate-900 border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 font-bold text-xs flex items-center gap-1"
+            title="Remove sample dummy data and start with your own custom data"
+          >
+            🧹 Clear Sample Data
+          </button>
+
+          <button
+            onClick={() => setShowKioskModal(true)}
+            className="py-2 px-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-cyan-500/25 flex items-center gap-2"
+          >
+            <Camera className="w-4 h-4" /> Kiosk Scanner
           </button>
         </div>
       </div>
@@ -245,6 +318,7 @@ export default function AdminDashboard({ user }) {
                   <th className="p-4">Biometrics Status</th>
                   <th className="p-4">ID Card Check</th>
                   <th className="p-4">Verification Action</th>
+                  <th className="p-4">Manage</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 text-slate-300">
@@ -265,7 +339,7 @@ export default function AdminDashboard({ user }) {
                     <td className="p-4 font-mono">
                       <div className="flex items-center gap-2">
                         <span>
-                          {revealedAadharId === member.id ? decryptedValue : member.aadharMasked}
+                          {revealedAadharId === member.id ? decryptedValue : (member.aadharMasked || 'XXXX-XXXX-XXXX')}
                         </span>
                         <button
                           onClick={() => handleRevealAadhar(member)}
@@ -292,9 +366,19 @@ export default function AdminDashboard({ user }) {
                     <td className="p-4">
                       <button
                         onClick={() => handleToggleVerifyUser(member.id, member.biometricsEnrolled)}
-                        className={`py-1.5 px-3 rounded-lg text-xs font-semibold border transition-colors ${member.biometricsEnrolled ? 'bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'}`}
+                        className={`py-1.5 px-3 rounded-lg text-xs font-semibold border transition-colors ${member.biometricsEnrolled ? 'bg-amber-500/20 text-amber-300 border-amber-500/30 hover:bg-amber-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'}`}
                       >
                         {member.biometricsEnrolled ? 'Revoke Access' : 'Approve & Verify'}
+                      </button>
+                    </td>
+
+                    <td className="p-4">
+                      <button
+                        onClick={() => handleDeleteMember(member.id)}
+                        className="py-1 px-2.5 rounded-lg bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/30 text-[11px] font-bold"
+                        title="Delete member from database"
+                      >
+                        🗑️ Delete
                       </button>
                     </td>
                   </tr>
@@ -434,6 +518,81 @@ export default function AdminDashboard({ user }) {
         orgId={selectedOrgId}
         onScanComplete={() => setAttendanceList(getAttendanceRecords())}
       />
+
+      {/* Add Custom Organization Modal */}
+      {showAddOrgModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-md rounded-3xl p-6 border border-cyan-500/30 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-cyan-400" /> Create Custom Organization
+              </h3>
+              <button 
+                onClick={() => setShowAddOrgModal(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateOrgSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="text-slate-300 font-semibold mb-1 block">Organization / Company Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Acme Tech Corporation or Delhi Public School"
+                  value={newOrgName}
+                  onChange={(e) => setNewOrgName(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-300 font-semibold mb-1 block">Org Code / Short Code</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. ACME"
+                    value={newOrgCode}
+                    onChange={(e) => setNewOrgCode(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-cyan-500 font-mono uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-semibold mb-1 block">Category Type</label>
+                  <select
+                    value={newOrgType}
+                    onChange={(e) => setNewOrgType(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-cyan-500 font-bold"
+                  >
+                    <option value="Company">Company / Enterprise</option>
+                    <option value="College">University / College</option>
+                    <option value="School">School / Academy</option>
+                    <option value="Government">Government Office</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddOrgModal(false)}
+                  className="py-2 px-4 rounded-xl bg-slate-800 text-slate-300 font-semibold hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="py-2 px-5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold shadow-lg shadow-cyan-500/20"
+                >
+                  Save Organization
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
