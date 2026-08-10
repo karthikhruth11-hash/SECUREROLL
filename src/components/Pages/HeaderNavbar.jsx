@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShieldCheck, LogOut, User, Building2, Lock, Shield, FileText } from 'lucide-react';
 
-export default function HeaderNavbar({ user, onLogout, onNavigate, activePage }) {
+export default function HeaderNavbar({ user, onLogout, onNavigate, activePage, onSwitchRole }) {
   return (
     <header className="sticky top-0 z-40 w-full glass-panel border-b border-slate-800 bg-slate-950/80 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -28,14 +28,32 @@ export default function HeaderNavbar({ user, onLogout, onNavigate, activePage })
           </div>
         </div>
 
-        {/* Navigation & User Menu */}
-        <div className="flex items-center gap-4">
+        {/* Navigation & Direct Access Quick Switcher */}
+        <div className="flex items-center gap-3">
+
+          {/* Quick Direct Role Switcher */}
+          <div className="hidden md:flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs">
+            <button
+              onClick={() => onSwitchRole && onSwitchRole('ADMIN')}
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${user?.role === 'ADMIN' ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20' : 'text-slate-400 hover:text-white'}`}
+              title="Direct Access: Full Admin Dashboard"
+            >
+              👑 Admin View
+            </button>
+            <button
+              onClick={() => onSwitchRole && onSwitchRole('MEMBER')}
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${user?.role === 'MEMBER' ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20' : 'text-slate-400 hover:text-white'}`}
+              title="Direct Access: Student / Member Portal"
+            >
+              👤 Member View
+            </button>
+          </div>
           
           <button
             onClick={() => onNavigate('PRIVACY')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${activePage === 'PRIVACY' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}
+            className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${activePage === 'PRIVACY' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}
           >
-            <Shield className="w-4 h-4 text-emerald-400" /> Privacy & Compliance
+            <Shield className="w-4 h-4 text-emerald-400" /> Privacy
           </button>
 
           {user ? (

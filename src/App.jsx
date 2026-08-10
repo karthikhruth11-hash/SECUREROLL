@@ -26,6 +26,22 @@ export default function App() {
         if (found && validateActiveSession(found.id)) {
           setCurrentUser(found);
           setActivePage('DASHBOARD');
+        } else {
+          // Default to Admin for Direct Access
+          const adminUser = users.find(u => u.role === 'ADMIN') || users[0];
+          if (adminUser) {
+            setCurrentUser(adminUser);
+            localStorage.setItem('secureroll_logged_user_id', adminUser.id);
+            setActivePage('DASHBOARD');
+          }
+        }
+      } else {
+        // Direct Access Default: Auto-login as Super Admin on first launch
+        const adminUser = users.find(u => u.role === 'ADMIN') || users[0];
+        if (adminUser) {
+          setCurrentUser(adminUser);
+          localStorage.setItem('secureroll_logged_user_id', adminUser.id);
+          setActivePage('DASHBOARD');
         }
       }
       setInitialized(true);
@@ -56,6 +72,15 @@ export default function App() {
     );
   }
 
+  const handleSwitchRole = (role) => {
+    const users = getUsers();
+    let target = users.find(u => u.role === role);
+    if (!target) target = users[0];
+    setCurrentUser(target);
+    localStorage.setItem('secureroll_logged_user_id', target.id);
+    setActivePage('DASHBOARD');
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans">
       
@@ -65,6 +90,7 @@ export default function App() {
         onLogout={handleLogout}
         onNavigate={(page) => setActivePage(page)}
         activePage={activePage}
+        onSwitchRole={handleSwitchRole}
       />
 
       {/* Main Content Body */}
