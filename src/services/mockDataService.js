@@ -94,67 +94,6 @@ export const initializeMockDatabase = async () => {
       localStorage.setItem(USERS_KEY, JSON.stringify(currentUsers));
     }
   }
-      {
-        id: 'USR-HR-01',
-        orgId: 'ORG-CORP-02',
-        orgName: 'Apex Global Solutions Inc.',
-        rollNumber: 'HR-200',
-        name: 'Priya Sundaram',
-        email: 'hr@apexcorp.com',
-        passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', // hr123
-        role: 'SUB_ADMIN',
-        aadharEncrypted: encryptedAadharHR,
-        aadharMasked: maskAadharID('111122223333'),
-        phone: '+91 9811223344',
-        biometricsEnrolled: true,
-        faceTemplate: 'TEMPLATE_HASH_FACE_HR',
-        fingerprintTemplate: 'TEMPLATE_HASH_FP_HR',
-        idCardVerified: true,
-        verificationStatus: 'VERIFIED',
-        createdAt: '2026-01-12T10:30:00.000Z'
-      },
-      {
-        id: 'USR-MEM-01',
-        orgId: 'ORG-TECH-01',
-        orgName: 'St. Xavier Institute of Technology',
-        rollNumber: '2024-CS-108',
-        name: 'Rohit Sharma',
-        email: 'rohit.sharma@stxavier.edu',
-        passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', // pass123
-        role: 'MEMBER',
-        aadharEncrypted: encryptedAadhar1,
-        aadharMasked: maskAadharID('773288194401'),
-        phone: '+91 9988776655',
-        biometricsEnrolled: true,
-        faceTemplate: 'TEMPLATE_HASH_FACE_ROHIT',
-        fingerprintTemplate: 'TEMPLATE_HASH_FP_ROHIT',
-        idCardVerified: true,
-        verificationStatus: 'VERIFIED',
-        createdAt: '2026-01-15T11:20:00.000Z'
-      },
-      {
-        id: 'USR-MEM-02',
-        orgId: 'ORG-CORP-02',
-        orgName: 'Apex Global Solutions Inc.',
-        rollNumber: 'EMP-9042',
-        name: 'Ananya Roy',
-        email: 'ananya.roy@apexcorp.com',
-        passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', // pass123
-        role: 'MEMBER',
-        aadharEncrypted: encryptedAadhar2,
-        aadharMasked: maskAadharID('451299013312'),
-        phone: '+91 9765432109',
-        biometricsEnrolled: true,
-        faceTemplate: 'TEMPLATE_HASH_FACE_ANANYA',
-        fingerprintTemplate: 'TEMPLATE_HASH_FP_ANANYA',
-        idCardVerified: true,
-        verificationStatus: 'VERIFIED',
-        createdAt: '2026-02-01T08:15:00.000Z'
-      }
-    ];
-
-    localStorage.setItem(USERS_KEY, JSON.stringify(seedUsers));
-  }
 
   if (!localStorage.getItem(ATTENDANCE_KEY)) {
     const seedAttendance = [
