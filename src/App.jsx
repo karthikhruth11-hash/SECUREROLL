@@ -7,7 +7,7 @@ import MemberDashboard from './components/Dashboard/MemberDashboard';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
 import PrivacyPolicy from './components/Pages/PrivacyPolicy';
 import { initializeMockDatabase, getUsers } from './services/mockDataService';
-import { validateActiveSession } from './services/securityService';
+import { resetDeviceAttempts, validateActiveSession } from './services/securityService';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -17,9 +17,10 @@ export default function App() {
 
   useEffect(() => {
     const initApp = async () => {
+      // Unfreeze device lockouts on launch for owner PC
+      resetDeviceAttempts();
       await initializeMockDatabase();
       const users = getUsers();
-      const savedUserId = localStorage.getItem('secureroll_logged_user_id');
 
       // Direct PC Owner Auto-Login: Always land on Karthik's Admin Profile on this device
       const karthikOwner = users.find(u => u.id === 'USR-ADMIN-KARTHIK' || u.name.toLowerCase() === 'karthik') || users.find(u => u.role === 'ADMIN') || users[0];

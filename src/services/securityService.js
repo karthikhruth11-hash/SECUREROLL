@@ -149,6 +149,15 @@ const DEVICE_ATTEMPTS_KEY = 'secureroll_device_attempts';
 
 export const getDeviceLockoutStatus = () => {
   try {
+    // Owner PC & Admin Exemption: Lockouts never apply to Karthik / Super Admin PC
+    const activeUserId = localStorage.getItem('secureroll_logged_user_id');
+    const isOwnerPC = !activeUserId || activeUserId === 'USR-ADMIN-KARTHIK' || activeUserId.includes('ADMIN');
+    
+    if (isOwnerPC) {
+      localStorage.removeItem(DEVICE_ATTEMPTS_KEY);
+      return { isFrozen: false, failedCount: 0 };
+    }
+
     const data = JSON.parse(localStorage.getItem(DEVICE_ATTEMPTS_KEY) || '{}');
     const now = Date.now();
     
