@@ -1,16 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Mail, Lock, Key, Smartphone, ArrowRight, AlertTriangle, CheckCircle2, Clock, Bot, Laptop } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, Key, Smartphone, ArrowRight, AlertTriangle, CheckCircle2, Clock, UserPlus, Laptop } from 'lucide-react';
 import { apiLogin, apiRequestOTP, apiVerifyOTP, apiGetSMSStatus } from '../../services/api.js';
 import { checkPasskeySupport, authenticateWithPasskey } from '../../services/passkeyClient.js';
 
-const SEED_PROFILES = [
-  { id: 'USR-SUPER-01', college_id: 'COL-SA-001', name: 'Karthik (Creator & System Admin)', email: 'karthik@secureroll.edu', role: 'SUPER_ADMIN', section: 'ADMIN', biometrics_enrolled: 1 },
-  { id: 'USR-ADMIN-01', college_id: 'COL-ADM-002', name: 'Dr. Rajesh Vardhan (Dean Academic)', email: 'admin@secureroll.edu', role: 'ADMIN', section: 'ADMIN', biometrics_enrolled: 1 },
-  { id: 'USR-LEC-01', college_id: 'COL-FAC-101', name: 'Prof. Sunita Sharma (Lecturer CSE)', email: 'sunita.sharma@secureroll.edu', role: 'LECTURER', section: 'FACULTY', biometrics_enrolled: 1 },
-  { id: 'USR-STU-01', college_id: '2024-CSE-108', name: 'Rohit Sharma', email: 'rohit.sharma@secureroll.edu', role: 'STUDENT', section: 'CSE-A', biometrics_enrolled: 1 }
-];
-
-export default function Login({ onLoginSuccess }) {
+export default function Login({ onLoginSuccess, onSwitchToRegister }) {
   const [authMode, setAuthMode] = useState('PASSWORD'); // PASSWORD, PASSKEY, OTP
   const [emailOrCollegeId, setEmailOrCollegeId] = useState('');
   const [password, setPassword] = useState('');
@@ -24,7 +17,6 @@ export default function Login({ onLoginSuccess }) {
   const [isOwnerPC, setIsOwnerPC] = useState(false);
 
   useEffect(() => {
-    // Detect Owner PC (Localhost or registered owner device)
     const checkOwner = () => {
       const isLocal = typeof window !== 'undefined' && (
         window.location.hostname === 'localhost' ||
@@ -50,43 +42,23 @@ export default function Login({ onLoginSuccess }) {
     checkStatus();
   }, []);
 
-  const performLogin = async (targetEmail, targetPass) => {
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
     setErrorMsg('');
     setLoading(true);
 
     try {
-      const res = await apiLogin(targetEmail, targetPass);
+      const res = await apiLogin(emailOrCollegeId, password);
       localStorage.setItem('secure_platform_jwt_token', res.token);
       localStorage.setItem('secure_platform_user', JSON.stringify(res.user));
       onLoginSuccess(res.user);
     } catch (err) {
-      console.warn('API Login error, falling back to profile authentication:', err);
-      const cleanInput = (targetEmail || '').toLowerCase().trim();
-      const matched = SEED_PROFILES.find(u => u.email.toLowerCase() === cleanInput || u.college_id.toLowerCase() === cleanInput) || SEED_PROFILES[3];
-      
-      const mockToken = 'JWT-MOCK-STANDALONE-' + Date.now();
-      localStorage.setItem('secure_platform_jwt_token', mockToken);
-      localStorage.setItem('secure_platform_user', JSON.stringify(matched));
-      onLoginSuccess(matched);
+      setErrorMsg(err.message || 'Invalid credentials. Please enter your registered email/college ID and password.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Standard Password Login Form Submit
-  const handlePasswordSubmit = async (e) => {
-    e.preventDefault();
-    await performLogin(emailOrCollegeId, password);
-  };
-
-  // Instant Preset Button Click Handler
-  const handlePresetClick = (email, pass) => {
-    setEmailOrCollegeId(email);
-    setPassword(pass);
-    performLogin(email, pass);
-  };
-
-  // WebAuthn Passkey Login
   const handlePasskeyLogin = async () => {
     setErrorMsg('');
     setLoading(true);
@@ -97,17 +69,12 @@ export default function Login({ onLoginSuccess }) {
       localStorage.setItem('secure_platform_user', JSON.stringify(res.user));
       onLoginSuccess(res.user);
     } catch (err) {
-      console.warn('Passkey auth error, using fallback profile:', err);
-      const matched = isOwnerPC ? SEED_PROFILES[0] : SEED_PROFILES[3];
-      localStorage.setItem('secure_platform_jwt_token', 'JWT-PASSKEY-DEMO');
-      localStorage.setItem('secure_platform_user', JSON.stringify(matched));
-      onLoginSuccess(matched);
+      setErrorMsg(err.message || 'Passkey authentication failed. Ensure your device passkey is registered.');
     } finally {
       setLoading(false);
     }
   };
 
-  // SMS OTP Request & Verification
   const handleRequestOTP = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -117,7 +84,7 @@ export default function Login({ onLoginSuccess }) {
       await apiRequestOTP(phone);
       setOtpSent(true);
     } catch (err) {
-      setOtpSent(true);
+      setErrorMsg(err.message || 'SMS OTP request failed.');
     } finally {
       setLoading(false);
     }
@@ -130,37 +97,40 @@ export default function Login({ onLoginSuccess }) {
 
     try {
       await apiVerifyOTP(otpInput);
-      await performLogin(emailOrCollegeId || 'rohit.sharma@secureroll.edu', 'Student@123');
+      const res = await apiLogin(emailOrCollegeId || phone, 'Student@123');
+      localStorage.setItem('secure_platform_jwt_token', res.token);
+      localStorage.setItem('secure_platform_user', JSON.stringify(res.user));
+      onLoginSuccess(res.user);
     } catch (err) {
-      await performLogin('rohit.sharma@secureroll.edu', 'Student@123');
+      setErrorMsg(err.message || 'Invalid OTP code.');
     } finally {
       setLoading(false);
     }
   };
 
   const enableOwnerDevice = () => {
-    const pin = prompt('Enter Owner PC Authorization Secret PIN to enable Super Admin quick access on this device:');
+    const pin = prompt('Enter Owner PC Authorization Secret PIN to enable Super Admin features on this device:');
     if (pin === '2026' || pin === 'admin') {
       localStorage.setItem('secure_owner_pc_device', 'true');
       setIsOwnerPC(true);
-      alert('This device is now registered as Karthik\'s Owner PC.');
+      alert('Device authorized as Karthik\'s Owner PC.');
     } else {
-      alert('Invalid PIN.');
+      alert('Invalid Owner PIN.');
     }
   };
 
   return (
     <div className="w-full max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden">
-      {/* Decorative Accent Glow */}
+      {/* Accent Line */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-80" />
 
-      {/* Header */}
+      {/* Brand Header */}
       <div className="text-center space-y-2">
         <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center mx-auto shadow-lg shadow-cyan-500/10">
           <ShieldCheck className="w-8 h-8" />
         </div>
         <h2 className="text-2xl font-extrabold text-white">SECURE Platform</h2>
-        <p className="text-xs text-slate-400">AI-Powered Enterprise College Identity & Attendance Portal</p>
+        <p className="text-xs text-slate-400">Enterprise AI College Identity, Attendance & Security Portal</p>
       </div>
 
       {/* Auth Method Selector */}
@@ -203,7 +173,7 @@ export default function Login({ onLoginSuccess }) {
             <input
               type="text"
               required
-              placeholder="karthik@secureroll.edu or 2024-CSE-108"
+              placeholder="Enter your registered email or college ID"
               value={emailOrCollegeId}
               onChange={(e) => setEmailOrCollegeId(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-cyan-500"
@@ -229,7 +199,7 @@ export default function Login({ onLoginSuccess }) {
             disabled={loading}
             className="w-full py-3.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
           >
-            {loading ? 'Authenticating...' : 'Sign In to Portal'} <ArrowRight className="w-4 h-4" />
+            {loading ? 'Authenticating on Server...' : 'Sign In to Portal'} <ArrowRight className="w-4 h-4" />
           </button>
         </form>
       )}
@@ -284,7 +254,7 @@ export default function Login({ onLoginSuccess }) {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !smsStatus.configured}
                 className="w-full py-3.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
               >
                 {loading ? 'Requesting OTP Code...' : 'Request 6-Digit SMS OTP'}
@@ -319,59 +289,26 @@ export default function Login({ onLoginSuccess }) {
         </div>
       )}
 
-      {/* Preset Accounts Bar */}
-      <div className="pt-4 border-t border-slate-800/80 space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] font-mono text-slate-500 uppercase font-bold">Public Demo Preset Roles</p>
-          {!isOwnerPC && (
+      {/* Registration & Owner PC Actions Bar */}
+      <div className="pt-5 border-t border-slate-800 space-y-3">
+        <button
+          type="button"
+          onClick={onSwitchToRegister}
+          className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-slate-700"
+        >
+          <UserPlus className="w-4 h-4 text-cyan-400" /> Register Student, Lecturer, Employee or Organization
+        </button>
+
+        {!isOwnerPC && (
+          <div className="text-center pt-1">
             <button
               onClick={enableOwnerDevice}
-              className="text-[10px] text-cyan-400 hover:underline flex items-center gap-1 font-mono"
+              className="text-[10px] text-slate-500 hover:text-cyan-400 transition-colors font-mono flex items-center justify-center gap-1 mx-auto"
             >
-              <Laptop className="w-3 h-3" /> Owner Device Authorization
+              <Laptop className="w-3 h-3" /> Owner Device Authorization PIN
             </button>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 text-[11px]">
-          {/* Super Admin Quick Button ONLY visible on Owner PC */}
-          {isOwnerPC && (
-            <button
-              onClick={() => handlePresetClick('karthik@secureroll.edu', 'Admin@123')}
-              className="p-2.5 rounded-xl bg-slate-950 border border-cyan-500/40 hover:border-cyan-400 text-left transition-colors cursor-pointer col-span-2"
-            >
-              <div className="flex items-center justify-between">
-                <p className="font-bold text-cyan-400">👑 Super Admin (Owner PC Verified)</p>
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 font-mono">THIS PC ONLY</span>
-              </div>
-              <p className="text-[10px] text-slate-400">Karthik (System Creator)</p>
-            </button>
-          )}
-
-          <button
-            onClick={() => handlePresetClick('admin@secureroll.edu', 'Admin@123')}
-            className={`p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition-colors cursor-pointer ${!isOwnerPC ? 'col-span-2' : ''}`}
-          >
-            <p className="font-bold text-cyan-400">🏛️ Admin</p>
-            <p className="text-[10px] text-slate-400">Dr. Rajesh Vardhan</p>
-          </button>
-
-          <button
-            onClick={() => handlePresetClick('sunita.sharma@secureroll.edu', 'Admin@123')}
-            className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition-colors cursor-pointer"
-          >
-            <p className="font-bold text-emerald-400">👩‍🏫 Lecturer</p>
-            <p className="text-[10px] text-slate-400">Prof. Sunita Sharma</p>
-          </button>
-
-          <button
-            onClick={() => handlePresetClick('rohit.sharma@secureroll.edu', 'Student@123')}
-            className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition-colors cursor-pointer"
-          >
-            <p className="font-bold text-blue-400">🎓 Student</p>
-            <p className="text-[10px] text-slate-400">Rohit Sharma</p>
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

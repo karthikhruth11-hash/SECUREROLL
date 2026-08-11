@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import HeaderNavbar from './components/Pages/HeaderNavbar';
 import Login from './components/Auth/Login';
+import Register from './components/Auth/Register';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
 import MemberDashboard from './components/Dashboard/MemberDashboard';
 import PasskeyManager from './components/Security/PasskeyManager';
@@ -17,6 +18,7 @@ import { apiGetMe } from './services/api.js';
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [activePage, setActivePage] = useState('DASHBOARD'); // DASHBOARD, PASSKEYS, SECURITY, REPORTS, IMPORT, LIVE_MONITOR, PRIVACY
+  const [showRegister, setShowRegister] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [selectedLiveSessionId, setSelectedLiveSessionId] = useState(null);
   const [showDynamicQR, setShowDynamicQR] = useState(false);
@@ -46,6 +48,7 @@ export default function App() {
 
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
+    setShowRegister(false);
     setActivePage('DASHBOARD');
   };
 
@@ -53,6 +56,7 @@ export default function App() {
     localStorage.removeItem('secure_platform_jwt_token');
     localStorage.removeItem('secure_platform_user');
     setCurrentUser(null);
+    setShowRegister(false);
   };
 
   if (!initialized) {
@@ -82,7 +86,17 @@ export default function App() {
         
         {!currentUser ? (
           <div className="py-8 animate-in fade-in">
-            <Login onLoginSuccess={handleLoginSuccess} />
+            {showRegister ? (
+              <Register
+                onSwitchToLogin={() => setShowRegister(false)}
+                onRegisterSuccess={handleLoginSuccess}
+              />
+            ) : (
+              <Login
+                onLoginSuccess={handleLoginSuccess}
+                onSwitchToRegister={() => setShowRegister(true)}
+              />
+            )}
           </div>
         ) : (
           <>
