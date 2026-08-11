@@ -35,13 +35,15 @@ export const DEFAULT_ORGANIZATIONS = [
 
 // Helper to seed initial data if empty
 export const initializeMockDatabase = async () => {
-  if (!localStorage.getItem(ORGS_KEY)) {
-    localStorage.setItem(ORGS_KEY, JSON.stringify(DEFAULT_ORGANIZATIONS));
+  // Always ensure Karthik's Org exists
+  let orgs = JSON.parse(localStorage.getItem(ORGS_KEY) || '[]');
+  if (!orgs.some(o => o.id === 'ORG-KARTHIK-01')) {
+    orgs.unshift(DEFAULT_ORGANIZATIONS[0]);
+    localStorage.setItem(ORGS_KEY, JSON.stringify(orgs));
   }
 
   const encryptedAadharKarthik = await encryptSensitiveData('999988887777');
   const encryptedAadhar1 = await encryptSensitiveData('773288194401');
-  const encryptedAadhar2 = await encryptSensitiveData('451299013312');
 
   const karthikUser = {
     id: 'USR-ADMIN-KARTHIK',
@@ -63,37 +65,18 @@ export const initializeMockDatabase = async () => {
     createdAt: '2026-01-01T00:00:00.000Z'
   };
 
-  if (!localStorage.getItem(USERS_KEY)) {
-    const seedUsers = [
-      karthikUser,
-      {
-        id: 'USR-MEM-01',
-        orgId: 'ORG-KARTHIK-01',
-        orgName: "Karthik's Enterprise Systems",
-        rollNumber: '2026-CS-101',
-        name: 'Rohit Sharma',
-        email: 'rohit@secureroll.org',
-        passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
-        role: 'MEMBER',
-        aadharEncrypted: encryptedAadhar1,
-        aadharMasked: maskAadharID('773288194401'),
-        phone: '+91 9988776655',
-        biometricsEnrolled: true,
-        idCardVerified: true,
-        verificationStatus: 'VERIFIED',
-        createdAt: '2026-01-15T11:20:00.000Z'
-      }
-    ];
-
-    localStorage.setItem(USERS_KEY, JSON.stringify(seedUsers));
+  let currentUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+  // Upgrade / update Karthik profile in storage
+  const karthikIdx = currentUsers.findIndex(u => u.id === 'USR-ADMIN-KARTHIK' || u.name.toLowerCase() === 'karthik');
+  if (karthikIdx !== -1) {
+    currentUsers[karthikIdx] = { ...currentUsers[karthikIdx], ...karthikUser };
   } else {
-    // Ensure Karthik exists in existing users storage
-    const currentUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
-    if (!currentUsers.some(u => u.id === 'USR-ADMIN-KARTHIK')) {
-      currentUsers.unshift(karthikUser);
-      localStorage.setItem(USERS_KEY, JSON.stringify(currentUsers));
-    }
+    currentUsers.unshift(karthikUser);
   }
+  localStorage.setItem(USERS_KEY, JSON.stringify(currentUsers));
+
+  // Set logged user to Karthik by default
+  localStorage.setItem('secureroll_logged_user_id', 'USR-ADMIN-KARTHIK');
 
   if (!localStorage.getItem(ATTENDANCE_KEY)) {
     const seedAttendance = [
