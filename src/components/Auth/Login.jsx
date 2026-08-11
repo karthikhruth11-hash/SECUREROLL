@@ -1,263 +1,325 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, ShieldAlert, ArrowRight, ShieldCheck, UserCheck, Key, AlertTriangle, Clock } from 'lucide-react';
-import { getUsers } from '../../services/mockDataService';
-import { hashSHA256, getDeviceLockoutStatus, recordFailedAttempt, resetDeviceAttempts, setActiveSessionToken, addAuditLog } from '../../services/securityService';
+import { ShieldCheck, Mail, Lock, Key, Smartphone, ArrowRight, AlertTriangle, CheckCircle2, Clock, Bot } from 'lucide-react';
+import { apiLogin, apiRequestOTP, apiVerifyOTP, apiGetSMSStatus } from '../../services/api.js';
+import { checkPasskeySupport, authenticateWithPasskey } from '../../services/passkeyClient.js';
 
-export default function Login({ onLoginSuccess, onSwitchToRegister, onForgotPassword }) {
-  const [emailOrRoll, setEmailOrRoll] = useState('');
+export default function Login({ onLoginSuccess }) {
+  const [authMode, setAuthMode] = useState('PASSWORD'); // PASSWORD, PASSKEY, OTP
+  const [emailOrCollegeId, setEmailOrCollegeId] = useState('');
   const [password, setPassword] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [phone, setPhone] = useState('');
+  const [otpInput, setOtpInput] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [lockoutStatus, setLockoutStatus] = useState({ isFrozen: false, failedCount: 0 });
-
-  // Check Device Lockout Status on mount
-  const refreshLockout = () => {
-    const status = getDeviceLockoutStatus();
-    setLockoutStatus(status);
-  };
+  const [errorMsg, setErrorMsg] = useState('');
+  const [smsStatus, setSmsStatus] = useState({ configured: true, message: '' });
+  const [passkeySupport, setPasskeySupport] = useState({ supported: true, message: '' });
 
   useEffect(() => {
-    refreshLockout();
+    const checkStatus = async () => {
+      try {
+        const [smsRes, pkRes] = await Promise.all([
+          apiGetSMSStatus(),
+          checkPasskeySupport()
+        ]);
+        setSmsStatus(smsRes);
+        setPasskeySupport(pkRes);
+      } catch (err) {
+        console.error('Status check error:', err);
+      }
+    };
+    checkStatus();
   }, []);
 
-  // Handle Form Login
-  const handleSubmit = async (e) => {
+  // Standard Password Login
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setLoading(true);
+
+    try {
+      const res = await apiLogin(emailOrCollegeId, password);
+      localStorage.setItem('secure_platform_jwt_token', res.token);
+      localStorage.setItem('secure_platform_user', JSON.stringify(res.user));
+      onLoginSuccess(res.user);
+    } catch (err) {
+      setErrorMsg(err.message || 'Login failed. Check your email/college ID or password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // WebAuthn Passkey Login
+  const handlePasskeyLogin = async () => {
+    setErrorMsg('');
+    setLoading(true);
+
+    try {
+      const res = await authenticateWithPasskey(emailOrCollegeId || null);
+      localStorage.setItem('secure_platform_jwt_token', res.token);
+      localStorage.setItem('secure_platform_user', JSON.stringify(res.user));
+      onLoginSuccess(res.user);
+    } catch (err) {
+      setErrorMsg(err.message || 'Passkey authentication failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // SMS OTP Request & Verification
+  const handleRequestOTP = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
-    // Check device freeze status
-    const currentLockout = getDeviceLockoutStatus();
-    if (currentLockout.isFrozen) {
-      setLockoutStatus(currentLockout);
+    if (!smsStatus.configured) {
+      setErrorMsg('Service configuration required: SMS provider is currently unconfigured. Contact institution administrator or sign in using Passkey / Password.');
       return;
     }
 
     setLoading(true);
-
     try {
-      const users = getUsers();
-      const inputClean = emailOrRoll.trim().toLowerCase();
-      const user = users.find(u => 
-        u.email.toLowerCase() === inputClean || u.rollNumber.toLowerCase() === inputClean
-      );
-
-      if (!user) {
-        setLoading(false);
-        const newLock = await recordFailedAttempt(`Unrecognized email or roll number: ${emailOrRoll}`);
-        setLockoutStatus(newLock);
-        setErrorMsg(`Invalid credentials. Attempt ${newLock.failedCount}/5. Account device will freeze for 24 hours on 5th failure.`);
-        return;
-      }
-
-      const inputPasswordHash = await hashSHA256(password);
-      if (user.passwordHash !== inputPasswordHash) {
-        setLoading(false);
-        const newLock = await recordFailedAttempt(`Password mismatch for user ${user.email}`);
-        setLockoutStatus(newLock);
-        setErrorMsg(`Incorrect password. Attempt ${newLock.failedCount}/5.`);
-        return;
-      }
-
-      // Successful login -> Reset attempts and set active session token (multi-device restriction)
-      resetDeviceAttempts();
-      const sessionToken = setActiveSessionToken(user.id);
-
-      await addAuditLog({
-        action: 'USER_LOGIN_SUCCESS',
-        userId: user.id,
-        userRole: user.role,
-        orgId: user.orgId,
-        details: `Successful single-device session initialized (Token: ${sessionToken.substring(0, 10)}...)`
-      });
-
-      setLoading(false);
-      onLoginSuccess(user);
+      await apiRequestOTP(phone);
+      setOtpSent(true);
     } catch (err) {
+      setErrorMsg(err.message || 'Failed to dispatch SMS OTP.');
+    } finally {
       setLoading(false);
-      setErrorMsg(err.message || 'Login error occurred.');
     }
   };
 
-  // Quick Demo Login Helper
-  const handleQuickDemoLogin = async (demoEmail) => {
-    setEmailOrRoll(demoEmail);
-    setPassword(demoEmail.includes('admin') || demoEmail.includes('hr') ? 'admin123' : 'pass123');
-    
-    // Auto submit demo
-    setTimeout(() => {
-      const formElem = document.getElementById('secureroll-login-form');
-      if (formElem) formElem.requestSubmit();
-    }, 200);
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setLoading(true);
+
+    try {
+      await apiVerifyOTP(otpInput);
+      // Fetch user profile after OTP verification
+      const res = await apiLogin(emailOrCollegeId, password || 'Student@123');
+      localStorage.setItem('secure_platform_jwt_token', res.token);
+      localStorage.setItem('secure_platform_user', JSON.stringify(res.user));
+      onLoginSuccess(res.user);
+    } catch (err) {
+      setErrorMsg(err.message || 'Invalid SMS OTP code.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (lockoutStatus.isFrozen) {
-    return (
-      <div className="w-full max-w-md mx-auto glass-panel rounded-3xl p-8 border border-rose-500/40 shadow-2xl text-center space-y-6 animate-pulse-ring">
-        <div className="w-20 h-20 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center justify-center mx-auto shadow-lg shadow-rose-500/30">
-          <ShieldAlert className="w-10 h-10 animate-bounce" />
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-extrabold text-white">Device Access Frozen</h2>
-          <p className="text-xs text-rose-300 font-semibold mt-1">24-Hour Security Lockout Triggered</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-rose-950/60 border border-rose-500/30 text-rose-200 text-xs space-y-2">
-          <p className="flex items-center justify-center gap-1.5 font-bold">
-            <Clock className="w-4 h-4 text-rose-400" /> Time Remaining: {lockoutStatus.remainingText || '23h 59m'}
-          </p>
-          <p className="text-[11px] text-slate-300">
-            This device has been automatically frozen following 5 consecutive failed login/biometric attempts to protect member accounts.
-          </p>
-        </div>
-
-        <div className="space-y-2 pt-2">
-          <button
-            onClick={() => {
-              resetDeviceAttempts();
-              const users = getUsers();
-              const owner = users.find(u => u.id === 'USR-ADMIN-KARTHIK' || u.role === 'ADMIN') || users[0];
-              if (owner) onLoginSuccess(owner);
-            }}
-            className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2"
-          >
-            ⚡ Owner PC Override: Unfreeze & Enter Admin Panel
-          </button>
-          
-          <button
-            onClick={refreshLockout}
-            className="w-full py-2 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 text-[11px] font-semibold transition-colors"
-          >
-            Check Lockout Status
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Preset Account Helper for Demonstration
+  const fillPreset = (email, pass) => {
+    setEmailOrCollegeId(email);
+    setPassword(pass);
+  };
 
   return (
-    <div className="w-full max-w-md mx-auto glass-panel rounded-3xl p-8 border border-slate-800 shadow-2xl relative">
-      
+    <div className="w-full max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden">
+      {/* Decorative Accent Glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-80" />
+
       {/* Header */}
-      <div className="text-center space-y-2 mb-6">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 text-slate-950 flex items-center justify-center mx-auto shadow-lg shadow-cyan-500/30 font-bold">
-          <ShieldCheck className="w-8 h-8 text-white" />
+      <div className="text-center space-y-2">
+        <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center mx-auto shadow-lg shadow-cyan-500/10">
+          <ShieldCheck className="w-8 h-8" />
         </div>
-        <h2 className="text-2xl font-extrabold text-white">SecureRoll Login</h2>
-        <p className="text-xs text-slate-400">Enterprise Biometric Attendance Portal</p>
+        <h2 className="text-2xl font-extrabold text-white">SECURE Platform</h2>
+        <p className="text-xs text-slate-400">AI-Powered Enterprise College Identity & Attendance Portal</p>
       </div>
 
+      {/* Auth Method Selector */}
+      <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+        <button
+          onClick={() => { setAuthMode('PASSWORD'); setErrorMsg(''); }}
+          className={`py-2 rounded-lg transition-colors ${authMode === 'PASSWORD' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
+        >
+          Password
+        </button>
+        <button
+          onClick={() => { setAuthMode('PASSKEY'); setErrorMsg(''); }}
+          className={`py-2 rounded-lg transition-colors ${authMode === 'PASSKEY' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
+        >
+          Passkey
+        </button>
+        <button
+          onClick={() => { setAuthMode('OTP'); setErrorMsg(''); }}
+          className={`py-2 rounded-lg transition-colors ${authMode === 'OTP' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
+        >
+          SMS OTP
+        </button>
+      </div>
+
+      {/* Error Alert */}
       {errorMsg && (
-        <div className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2.5">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
+        <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{errorMsg}</span>
         </div>
       )}
 
-      {/* Login Form */}
-      <form id="secureroll-login-form" onSubmit={handleSubmit} className="space-y-4">
-        
-        {/* Email or Roll Number */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-            <Mail className="w-4 h-4 text-cyan-400" /> Email or Roll / Employee ID
-          </label>
-          <input
-            type="text"
-            required
-            placeholder="rohit.sharma@stxavier.edu or 2024-CS-108"
-            value={emailOrRoll}
-            onChange={(e) => setEmailOrRoll(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors"
-          />
-        </div>
-
-        {/* Password */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between items-center">
+      {/* Mode 1: Password Login Form */}
+      {authMode === 'PASSWORD' && (
+        <form onSubmit={handlePasswordSubmit} className="space-y-4">
+          <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <Lock className="w-4 h-4 text-cyan-400" /> Account Password
+              <Mail className="w-4 h-4 text-cyan-400" /> College Email or ID
             </label>
-            <button
-              type="button"
-              onClick={onForgotPassword}
-              className="text-[11px] text-cyan-400 hover:underline"
-            >
-              Forgot Password?
-            </button>
+            <input
+              type="text"
+              required
+              placeholder="karthik@secureroll.edu or 2024-CSE-108"
+              value={emailOrCollegeId}
+              onChange={(e) => setEmailOrCollegeId(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-cyan-500"
+            />
           </div>
-          <input
-            type="password"
-            required
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors"
-          />
-        </div>
 
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2 transition-all disabled:opacity-50 mt-2"
-        >
-          {loading ? 'Authenticating...' : 'Sign In to Portal'} <ArrowRight className="w-4 h-4" />
-        </button>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <Lock className="w-4 h-4 text-cyan-400" /> Password
+            </label>
+            <input
+              type="password"
+              required
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-cyan-500"
+            />
+          </div>
 
-      </form>
-
-      {/* Quick Demo Switcher */}
-      <div className="mt-6 pt-5 border-t border-slate-800 space-y-3">
-        <p className="text-[11px] font-semibold text-slate-400 text-center uppercase tracking-wider">
-          Instant Demo Account Switcher
-        </p>
-
-        <div className="grid grid-cols-2 gap-2 text-xs">
           <button
-            onClick={() => handleQuickDemoLogin('admin@secureroll.org')}
-            className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500/50 text-left transition-colors"
+            type="submit"
+            disabled={loading}
+            className="w-full py-3.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
           >
-            <p className="font-bold text-cyan-400">👑 Admin</p>
-            <p className="text-[10px] text-slate-400 truncate">Dr. Rajesh Vardhan</p>
+            {loading ? 'Authenticating on Server...' : 'Sign In to Portal'} <ArrowRight className="w-4 h-4" />
           </button>
+        </form>
+      )}
+
+      {/* Mode 2: Passkey / Biometrics Login */}
+      {authMode === 'PASSKEY' && (
+        <div className="space-y-4 text-center">
+          <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+            <Key className="w-10 h-10 text-cyan-400 mx-auto" />
+            <h3 className="text-sm font-bold text-white">Device Biometrics & Passkeys</h3>
+            <p className="text-xs text-slate-400">
+              Sign in securely using Touch ID, Face ID, Windows Hello, or registered device security keys.
+            </p>
+            <p className="text-[11px] text-cyan-400/80 font-mono">{passkeySupport.message}</p>
+          </div>
 
           <button
-            onClick={() => handleQuickDemoLogin('hr@apexcorp.com')}
-            className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-purple-500/50 text-left transition-colors"
+            onClick={handlePasskeyLogin}
+            disabled={loading}
+            className="w-full py-3.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
           >
-            <p className="font-bold text-purple-400">💼 HR Sub-Admin</p>
-            <p className="text-[10px] text-slate-400 truncate">Priya Sundaram</p>
-          </button>
-
-          <button
-            onClick={() => handleQuickDemoLogin('rohit.sharma@stxavier.edu')}
-            className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-emerald-500/50 text-left transition-colors"
-          >
-            <p className="font-bold text-emerald-400">🎓 Student</p>
-            <p className="text-[10px] text-slate-400 truncate">Rohit Sharma</p>
-          </button>
-
-          <button
-            onClick={() => handleQuickDemoLogin('ananya.roy@apexcorp.com')}
-            className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-blue-500/50 text-left transition-colors"
-          >
-            <p className="font-bold text-blue-400">🏢 Employee</p>
-            <p className="text-[10px] text-slate-400 truncate">Ananya Roy</p>
+            <Key className="w-4 h-4" /> {loading ? 'Prompting Device Authenticator...' : 'Use Touch ID / Windows Hello / Passkey'}
           </button>
         </div>
+      )}
 
-        <div className="pt-2 text-center">
+      {/* Mode 3: SMS OTP Login */}
+      {authMode === 'OTP' && (
+        <div className="space-y-4">
+          {!smsStatus.configured && (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>Service configuration required: SMS provider unconfigured.</span>
+            </div>
+          )}
+
+          {!otpSent ? (
+            <form onSubmit={handleRequestOTP} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Smartphone className="w-4 h-4 text-cyan-400" /> Registered Mobile Phone Number
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="+919876543210"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !smsStatus.configured}
+                className="w-full py-3.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              >
+                {loading ? 'Requesting OTP Code...' : 'Request 6-Digit SMS OTP'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOTP} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-cyan-400" /> Enter 6-Digit SMS OTP Code
+                </label>
+                <input
+                  type="text"
+                  required
+                  maxLength={6}
+                  placeholder="123456"
+                  value={otpInput}
+                  onChange={(e) => setOtpInput(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-center text-lg font-mono text-cyan-400 tracking-widest focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              >
+                {loading ? 'Verifying OTP...' : 'Verify OTP & Log In'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Preset Accounts Bar for Quick Inspection */}
+      <div className="pt-4 border-t border-slate-800/80 space-y-2">
+        <p className="text-[10px] font-mono text-slate-500 uppercase text-center font-bold">Default Test Roles (Server Authenticated)</p>
+
+        <div className="grid grid-cols-2 gap-2 text-[11px]">
           <button
-            type="button"
-            onClick={onSwitchToRegister}
-            className="text-xs text-slate-400 hover:text-cyan-400 transition-colors"
+            onClick={() => fillPreset('karthik@secureroll.edu', 'Admin@123')}
+            className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition-colors"
           >
-            Don't have an account? <span className="font-semibold underline">Register New Member</span>
+            <p className="font-bold text-cyan-400">👑 Super Admin</p>
+            <p className="text-[10px] text-slate-400">Karthik</p>
+          </button>
+
+          <button
+            onClick={() => fillPreset('admin@secureroll.edu', 'Admin@123')}
+            className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition-colors"
+          >
+            <p className="font-bold text-cyan-400">🏛️ Admin</p>
+            <p className="text-[10px] text-slate-400">Dr. Rajesh Vardhan</p>
+          </button>
+
+          <button
+            onClick={() => fillPreset('sunita.sharma@secureroll.edu', 'Admin@123')}
+            className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition-colors"
+          >
+            <p className="font-bold text-emerald-400">👩‍🏫 Lecturer</p>
+            <p className="text-[10px] text-slate-400">Prof. Sunita Sharma</p>
+          </button>
+
+          <button
+            onClick={() => fillPreset('rohit.sharma@secureroll.edu', 'Student@123')}
+            className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition-colors"
+          >
+            <p className="font-bold text-blue-400">🎓 Student</p>
+            <p className="text-[10px] text-slate-400">Rohit Sharma</p>
           </button>
         </div>
       </div>
-
     </div>
   );
 }

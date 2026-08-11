@@ -1,99 +1,82 @@
 import React from 'react';
-import { ShieldCheck, LogOut, User, Building2, Lock, Shield, FileText } from 'lucide-react';
+import { ShieldCheck, Command, Bot, LogOut, Key, FileText, Upload, ShieldAlert, User } from 'lucide-react';
 
-export default function HeaderNavbar({ user, onLogout, onNavigate, activePage, onSwitchRole }) {
+export default function HeaderNavbar({ user, onLogout, onNavigate, activePage, onOpenAI, onOpenCommand }) {
   return (
-    <header className="sticky top-0 z-40 w-full glass-panel border-b border-slate-800 bg-slate-950/80 backdrop-blur-xl">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+    <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         
-        {/* Brand Logo & Name */}
-        <div 
+        {/* Brand */}
+        <div
           onClick={() => onNavigate('DASHBOARD')}
           className="flex items-center gap-3 cursor-pointer group"
         >
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 p-0.5 shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
-            <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center text-cyan-400">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
+          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <ShieldCheck className="w-6 h-6" />
           </div>
-
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-black tracking-tight text-white font-outfit">Secure<span className="text-cyan-400">Roll</span></span>
-              <span className="bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-                ENTERPRISE v2.6
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 tracking-wide">Multi-Organization Biometric Attendance</p>
+            <span className="text-lg font-extrabold text-white tracking-wider">SECURE</span>
+            <span className="text-[10px] block font-mono text-cyan-400 -mt-1 font-semibold">COLLEGE IDENTITY</span>
           </div>
         </div>
 
-        {/* Navigation & Direct Access Quick Switcher */}
-        <div className="flex items-center gap-3">
-
-          {/* Quick Direct Role Switcher */}
-          <div className="hidden md:flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs">
+        {/* Action Buttons */}
+        {user && (
+          <div className="flex items-center gap-3">
+            {/* Command Palette Trigger */}
             <button
-              onClick={() => onSwitchRole && onSwitchRole('ADMIN')}
-              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${user?.role === 'ADMIN' ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20' : 'text-slate-400 hover:text-white'}`}
-              title="Direct Access: Full Admin Dashboard"
+              onClick={onOpenCommand}
+              className="hidden sm:flex items-center gap-2 py-1.5 px-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white text-xs font-mono transition-colors"
             >
-              👑 Admin View
+              <Command className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Search actions...</span>
+              <kbd className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">Ctrl+K</kbd>
             </button>
-            <button
-              onClick={() => onSwitchRole && onSwitchRole('MEMBER')}
-              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${user?.role === 'MEMBER' ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20' : 'text-slate-400 hover:text-white'}`}
-              title="Direct Access: Student / Member Portal"
-            >
-              👤 Member View
-            </button>
-          </div>
-          
-          <button
-            onClick={() => onNavigate('PRIVACY')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${activePage === 'PRIVACY' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}
-          >
-            <Shield className="w-4 h-4 text-emerald-400" /> Privacy
-          </button>
 
-          {user ? (
-            <div className="flex items-center gap-3 pl-4 border-l border-slate-800">
-              
-              {/* User Profile Card */}
-              <div className="hidden sm:flex items-center gap-3 text-right">
-                <div>
-                  <p className="text-xs font-bold text-white leading-tight">{user.name}</p>
-                  <div className="flex items-center justify-end gap-1.5">
-                    <span className="text-[10px] text-cyan-400 font-mono font-bold uppercase">{user.role}</span>
-                    <span className="text-slate-600">•</span>
-                    <span className="text-[10px] text-slate-400 truncate max-w-[120px]">{user.orgName}</span>
-                  </div>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-slate-900 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-sm">
-                  {user.name ? user.name[0] : 'U'}
-                </div>
+            {/* AI Assistant Button */}
+            <button
+              onClick={onOpenAI}
+              className="py-2 px-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 text-xs font-bold flex items-center gap-1.5 transition-colors"
+            >
+              <Bot className="w-4 h-4" /> <span className="hidden sm:inline">AI Assistant</span>
+            </button>
+
+            {/* Navigation links */}
+            <button
+              onClick={() => onNavigate('PASSKEYS')}
+              className={`p-2 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors ${activePage === 'PASSKEYS' ? 'text-cyan-400 bg-slate-900' : 'text-slate-400 hover:text-white'}`}
+              title="Passkeys & Devices"
+            >
+              <Key className="w-4 h-4" /> <span className="hidden md:inline">Passkeys</span>
+            </button>
+
+            {(user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') && (
+              <button
+                onClick={() => onNavigate('SECURITY')}
+                className={`p-2 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors ${activePage === 'SECURITY' ? 'text-cyan-400 bg-slate-900' : 'text-slate-400 hover:text-white'}`}
+                title="Security Intelligence Center"
+              >
+                <ShieldAlert className="w-4 h-4" /> <span className="hidden md:inline">Security</span>
+              </button>
+            )}
+
+            {/* User Profile Badge */}
+            <div className="flex items-center gap-3 pl-3 border-l border-slate-800">
+              <div className="text-right hidden md:block text-xs">
+                <p className="font-bold text-white leading-none">{user.name}</p>
+                <span className="text-[10px] font-mono text-cyan-400">{user.role}</span>
               </div>
 
-              {/* Logout Button */}
               <button
                 onClick={onLogout}
-                className="p-2.5 rounded-xl bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/30 transition-all"
+                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                 title="Sign Out"
               >
                 <LogOut className="w-4 h-4" />
               </button>
-
             </div>
-          ) : (
-            <button
-              onClick={() => onNavigate('LOGIN')}
-              className="py-2.5 px-5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-cyan-500/20"
-            >
-              Sign In
-            </button>
-          )}
-
-        </div>
+          </div>
+        )}
 
       </div>
     </header>
