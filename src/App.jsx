@@ -21,28 +21,12 @@ export default function App() {
       const users = getUsers();
       const savedUserId = localStorage.getItem('secureroll_logged_user_id');
 
-      if (savedUserId) {
-        const found = users.find(u => u.id === savedUserId);
-        if (found && validateActiveSession(found.id)) {
-          setCurrentUser(found);
-          setActivePage('DASHBOARD');
-        } else {
-          // Default to Admin for Direct Access
-          const adminUser = users.find(u => u.role === 'ADMIN') || users[0];
-          if (adminUser) {
-            setCurrentUser(adminUser);
-            localStorage.setItem('secureroll_logged_user_id', adminUser.id);
-            setActivePage('DASHBOARD');
-          }
-        }
-      } else {
-        // Direct Access Default: Auto-login as Super Admin on first launch
-        const adminUser = users.find(u => u.role === 'ADMIN') || users[0];
-        if (adminUser) {
-          setCurrentUser(adminUser);
-          localStorage.setItem('secureroll_logged_user_id', adminUser.id);
-          setActivePage('DASHBOARD');
-        }
+      // Direct PC Owner Auto-Login: Always land on Karthik's Admin Profile on this device
+      const karthikOwner = users.find(u => u.id === 'USR-ADMIN-KARTHIK' || u.name.toLowerCase() === 'karthik') || users.find(u => u.role === 'ADMIN') || users[0];
+      if (karthikOwner) {
+        setCurrentUser(karthikOwner);
+        localStorage.setItem('secureroll_logged_user_id', karthikOwner.id);
+        setActivePage('DASHBOARD');
       }
       setInitialized(true);
     };

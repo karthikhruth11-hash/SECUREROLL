@@ -14,6 +14,15 @@ const LEAVES_KEY = 'secureroll_leaves';
 // Default Organizations
 export const DEFAULT_ORGANIZATIONS = [
   {
+    id: 'ORG-KARTHIK-01',
+    name: "Karthik's Enterprise Systems",
+    type: 'Enterprise Company',
+    code: 'KSE',
+    logo: '⚡',
+    location: 'Karthik Headquarters & Campus',
+    geoFence: { lat: 28.6273, lng: 77.3714, radiusMeters: 500 }
+  },
+  {
     id: 'ORG-TECH-01',
     name: 'St. Xavier Institute of Technology',
     type: 'College',
@@ -21,15 +30,6 @@ export const DEFAULT_ORGANIZATIONS = [
     logo: '🎓',
     location: 'Campus Hub, Sector 62',
     geoFence: { lat: 28.6273, lng: 77.3714, radiusMeters: 500 }
-  },
-  {
-    id: 'ORG-CORP-02',
-    name: 'Apex Global Solutions Inc.',
-    type: 'Corporate Company',
-    code: 'AGS',
-    logo: '🏢',
-    location: 'Apex Cyber Towers, Phase 5',
-    geoFence: { lat: 12.9716, lng: 77.5946, radiusMeters: 300 }
   }
 ];
 
@@ -39,33 +39,61 @@ export const initializeMockDatabase = async () => {
     localStorage.setItem(ORGS_KEY, JSON.stringify(DEFAULT_ORGANIZATIONS));
   }
 
-  if (!localStorage.getItem(USERS_KEY)) {
-    // Encrypt sensitive Aadhar numbers
-    const encryptedAadhar1 = await encryptSensitiveData('773288194401');
-    const encryptedAadhar2 = await encryptSensitiveData('451299013312');
-    const encryptedAadharAdmin = await encryptSensitiveData('999988887777');
-    const encryptedAadharHR = await encryptSensitiveData('111122223333');
+  const encryptedAadharKarthik = await encryptSensitiveData('999988887777');
+  const encryptedAadhar1 = await encryptSensitiveData('773288194401');
+  const encryptedAadhar2 = await encryptSensitiveData('451299013312');
 
+  const karthikUser = {
+    id: 'USR-ADMIN-KARTHIK',
+    orgId: 'ORG-KARTHIK-01',
+    orgName: "Karthik's Enterprise Systems",
+    rollNumber: 'KARTHIK-001',
+    name: 'Karthik',
+    email: 'karthik@secureroll.org',
+    passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
+    role: 'ADMIN',
+    aadharEncrypted: encryptedAadharKarthik,
+    aadharMasked: maskAadharID('999988887777'),
+    phone: '+91 9876543210',
+    biometricsEnrolled: true,
+    faceTemplate: 'TEMPLATE_HASH_FACE_KARTHIK',
+    fingerprintTemplate: 'TEMPLATE_HASH_FP_KARTHIK',
+    idCardVerified: true,
+    verificationStatus: 'VERIFIED',
+    createdAt: '2026-01-01T00:00:00.000Z'
+  };
+
+  if (!localStorage.getItem(USERS_KEY)) {
     const seedUsers = [
+      karthikUser,
       {
-        id: 'USR-ADMIN-01',
-        orgId: 'ORG-TECH-01',
-        orgName: 'St. Xavier Institute of Technology',
-        rollNumber: 'ADMIN-001',
-        name: 'Dr. Rajesh Vardhan',
-        email: 'admin@secureroll.org',
-        passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', // admin123
-        role: 'ADMIN',
-        aadharEncrypted: encryptedAadharAdmin,
-        aadharMasked: maskAadharID('999988887777'),
-        phone: '+91 9876543210',
+        id: 'USR-MEM-01',
+        orgId: 'ORG-KARTHIK-01',
+        orgName: "Karthik's Enterprise Systems",
+        rollNumber: '2026-CS-101',
+        name: 'Rohit Sharma',
+        email: 'rohit@secureroll.org',
+        passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
+        role: 'MEMBER',
+        aadharEncrypted: encryptedAadhar1,
+        aadharMasked: maskAadharID('773288194401'),
+        phone: '+91 9988776655',
         biometricsEnrolled: true,
-        faceTemplate: 'TEMPLATE_HASH_FACE_ADMIN',
-        fingerprintTemplate: 'TEMPLATE_HASH_FP_ADMIN',
         idCardVerified: true,
         verificationStatus: 'VERIFIED',
-        createdAt: '2026-01-10T09:00:00.000Z'
-      },
+        createdAt: '2026-01-15T11:20:00.000Z'
+      }
+    ];
+
+    localStorage.setItem(USERS_KEY, JSON.stringify(seedUsers));
+  } else {
+    // Ensure Karthik exists in existing users storage
+    const currentUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+    if (!currentUsers.some(u => u.id === 'USR-ADMIN-KARTHIK')) {
+      currentUsers.unshift(karthikUser);
+      localStorage.setItem(USERS_KEY, JSON.stringify(currentUsers));
+    }
+  }
       {
         id: 'USR-HR-01',
         orgId: 'ORG-CORP-02',
