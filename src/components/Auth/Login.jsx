@@ -62,7 +62,7 @@ export default function Login({ onLoginSuccess }) {
     } catch (err) {
       console.warn('API Login error, falling back to profile authentication:', err);
       const cleanInput = (targetEmail || '').toLowerCase().trim();
-      const matched = SEED_PROFILES.find(u => u.email.toLowerCase() === cleanInput || u.college_id.toLowerCase() === cleanInput) || SEED_PROFILES[1];
+      const matched = SEED_PROFILES.find(u => u.email.toLowerCase() === cleanInput || u.college_id.toLowerCase() === cleanInput) || SEED_PROFILES[3];
       
       const mockToken = 'JWT-MOCK-STANDALONE-' + Date.now();
       localStorage.setItem('secure_platform_jwt_token', mockToken);
@@ -98,7 +98,7 @@ export default function Login({ onLoginSuccess }) {
       onLoginSuccess(res.user);
     } catch (err) {
       console.warn('Passkey auth error, using fallback profile:', err);
-      const matched = isOwnerPC ? SEED_PROFILES[0] : SEED_PROFILES[1];
+      const matched = isOwnerPC ? SEED_PROFILES[0] : SEED_PROFILES[3];
       localStorage.setItem('secure_platform_jwt_token', 'JWT-PASSKEY-DEMO');
       localStorage.setItem('secure_platform_user', JSON.stringify(matched));
       onLoginSuccess(matched);

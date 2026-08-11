@@ -61,7 +61,7 @@ export const apiFetch = async (endpoint, options = {}) => {
     if (cleanEndpoint === '/auth/login') {
       const { emailOrCollegeId } = options.body || {};
       const cleanInput = (emailOrCollegeId || '').toLowerCase().trim();
-      const matched = SEED_USERS.find(u => u.email.toLowerCase() === cleanInput || u.college_id.toLowerCase() === cleanInput) || SEED_USERS[0];
+      const matched = SEED_USERS.find(u => u.email.toLowerCase() === cleanInput || u.college_id.toLowerCase() === cleanInput) || SEED_USERS[3];
       
       const mockToken = 'JWT-MOCK-STANDALONE-' + Math.random().toString(36).substr(2, 9);
       return {
@@ -73,8 +73,10 @@ export const apiFetch = async (endpoint, options = {}) => {
 
     if (cleanEndpoint === '/auth/me') {
       const stored = localStorage.getItem('secure_platform_user');
-      const user = stored ? JSON.parse(stored) : SEED_USERS[0];
-      return { success: true, user };
+      if (stored) {
+        return { success: true, user: JSON.parse(stored) };
+      }
+      return { success: false, user: null };
     }
 
     if (cleanEndpoint === '/auth/otp/status') {
