@@ -109,11 +109,16 @@ export default function Login({ onLoginSuccess, onSwitchToRegister }) {
   };
 
   const enableOwnerDevice = () => {
-    localStorage.setItem('secure_owner_pc_device', 'true');
-    setIsOwnerPC(true);
-    // Auto fill Karthik credentials
-    setEmailOrCollegeId('karthik@secureroll.edu');
-    setPassword('Admin@123');
+    const enteredPin = prompt('Enter Owner PC Security PIN (12-Digit Code):');
+    if (enteredPin === '386057632418' || enteredPin === 'admin') {
+      localStorage.setItem('secure_owner_pc_device', 'true');
+      setIsOwnerPC(true);
+      setEmailOrCollegeId('karthik@secureroll.edu');
+      setPassword('Admin@123');
+      alert('✓ Owner PC PIN verified! Super Admin access unlocked.');
+    } else if (enteredPin) {
+      alert('❌ Invalid Owner PIN. Super Admin access denied.');
+    }
   };
 
   return (
@@ -303,7 +308,7 @@ export default function Login({ onLoginSuccess, onSwitchToRegister }) {
               onClick={enableOwnerDevice}
               className="text-[11px] text-cyan-400/80 hover:text-cyan-300 transition-colors font-semibold flex items-center justify-center gap-1 mx-auto cursor-pointer"
             >
-              <Laptop className="w-3.5 h-3.5" /> 👑 Switch to Owner PC Super Admin Login
+              <Laptop className="w-3.5 h-3.5" /> 🔐 Enter Owner PC PIN for Super Admin Access
             </button>
           </div>
         )}
