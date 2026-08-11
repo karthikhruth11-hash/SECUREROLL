@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Mail, Lock, Key, Smartphone, ArrowRight, AlertTriangle, CheckCircle2, Clock, Bot } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, Key, Smartphone, ArrowRight, AlertTriangle, CheckCircle2, Clock, Bot, Laptop } from 'lucide-react';
 import { apiLogin, apiRequestOTP, apiVerifyOTP, apiGetSMSStatus } from '../../services/api.js';
 import { checkPasskeySupport, authenticateWithPasskey } from '../../services/passkeyClient.js';
 
@@ -21,8 +21,19 @@ export default function Login({ onLoginSuccess }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [smsStatus, setSmsStatus] = useState({ configured: true, message: '' });
   const [passkeySupport, setPasskeySupport] = useState({ supported: true, message: '' });
+  const [isOwnerPC, setIsOwnerPC] = useState(false);
 
   useEffect(() => {
+    // Detect Owner PC (Localhost or registered owner device)
+    const checkOwner = () => {
+      const isLocal = typeof window !== 'undefined' && (
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        localStorage.getItem('secure_owner_pc_device') === 'true'
+      );
+      setIsOwnerPC(isLocal);
+    };
+
     const checkStatus = async () => {
       try {
         const [smsRes, pkRes] = await Promise.all([
@@ -35,6 +46,7 @@ export default function Login({ onLoginSuccess }) {
         console.error('Status check error:', err);
       }
     };
+    checkOwner();
     checkStatus();
   }, []);
 
@@ -49,9 +61,8 @@ export default function Login({ onLoginSuccess }) {
       onLoginSuccess(res.user);
     } catch (err) {
       console.warn('API Login error, falling back to profile authentication:', err);
-      // Fallback local profile login for static GitHub Pages hosting
       const cleanInput = (targetEmail || '').toLowerCase().trim();
-      const matched = SEED_PROFILES.find(u => u.email.toLowerCase() === cleanInput || u.college_id.toLowerCase() === cleanInput) || SEED_PROFILES[0];
+      const matched = SEED_PROFILES.find(u => u.email.toLowerCase() === cleanInput || u.college_id.toLowerCase() === cleanInput) || SEED_PROFILES[1];
       
       const mockToken = 'JWT-MOCK-STANDALONE-' + Date.now();
       localStorage.setItem('secure_platform_jwt_token', mockToken);
@@ -87,7 +98,7 @@ export default function Login({ onLoginSuccess }) {
       onLoginSuccess(res.user);
     } catch (err) {
       console.warn('Passkey auth error, using fallback profile:', err);
-      const matched = SEED_PROFILES[0];
+      const matched = isOwnerPC ? SEED_PROFILES[0] : SEED_PROFILES[1];
       localStorage.setItem('secure_platform_jwt_token', 'JWT-PASSKEY-DEMO');
       localStorage.setItem('secure_platform_user', JSON.stringify(matched));
       onLoginSuccess(matched);
@@ -106,7 +117,6 @@ export default function Login({ onLoginSuccess }) {
       await apiRequestOTP(phone);
       setOtpSent(true);
     } catch (err) {
-      // Allow demo OTP continuation
       setOtpSent(true);
     } finally {
       setLoading(false);
@@ -125,6 +135,17 @@ export default function Login({ onLoginSuccess }) {
       await performLogin('rohit.sharma@secureroll.edu', 'Student@123');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const enableOwnerDevice = () => {
+    const pin = prompt('Enter Owner PC Authorization Secret PIN to enable Super Admin quick access on this device:');
+    if (pin === '2026' || pin === 'admin') {
+      localStorage.setItem('secure_owner_pc_device', 'true');
+      setIsOwnerPC(true);
+      alert('This device is now registered as Karthik\'s Owner PC.');
+    } else {
+      alert('Invalid PIN.');
     }
   };
 
@@ -298,22 +319,38 @@ export default function Login({ onLoginSuccess }) {
         </div>
       )}
 
-      {/* Preset Accounts Bar for Instant Inspection */}
+      {/* Preset Accounts Bar */}
       <div className="pt-4 border-t border-slate-800/80 space-y-2">
-        <p className="text-[10px] font-mono text-slate-500 uppercase text-center font-bold">Instant Login Preset Roles</p>
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-mono text-slate-500 uppercase font-bold">Public Demo Preset Roles</p>
+          {!isOwnerPC && (
+            <button
+              onClick={enableOwnerDevice}
+              className="text-[10px] text-cyan-400 hover:underline flex items-center gap-1 font-mono"
+            >
+              <Laptop className="w-3 h-3" /> Owner Device Authorization
+            </button>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-2 text-[11px]">
-          <button
-            onClick={() => handlePresetClick('karthik@secureroll.edu', 'Admin@123')}
-            className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition-colors cursor-pointer"
-          >
-            <p className="font-bold text-cyan-400">👑 Super Admin</p>
-            <p className="text-[10px] text-slate-400">Karthik</p>
-          </button>
+          {/* Super Admin Quick Button ONLY visible on Owner PC */}
+          {isOwnerPC && (
+            <button
+              onClick={() => handlePresetClick('karthik@secureroll.edu', 'Admin@123')}
+              className="p-2.5 rounded-xl bg-slate-950 border border-cyan-500/40 hover:border-cyan-400 text-left transition-colors cursor-pointer col-span-2"
+            >
+              <div className="flex items-center justify-between">
+                <p className="font-bold text-cyan-400">👑 Super Admin (Owner PC Verified)</p>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 font-mono">THIS PC ONLY</span>
+              </div>
+              <p className="text-[10px] text-slate-400">Karthik (System Creator)</p>
+            </button>
+          )}
 
           <button
             onClick={() => handlePresetClick('admin@secureroll.edu', 'Admin@123')}
-            className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition-colors cursor-pointer"
+            className={`p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition-colors cursor-pointer ${!isOwnerPC ? 'col-span-2' : ''}`}
           >
             <p className="font-bold text-cyan-400">🏛️ Admin</p>
             <p className="text-[10px] text-slate-400">Dr. Rajesh Vardhan</p>
