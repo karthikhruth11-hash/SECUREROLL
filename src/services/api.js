@@ -83,6 +83,23 @@ export const apiFetch = async (endpoint, options = {}) => {
       return { configured: false, message: 'SMS verification service configuration required. Please configure SMS_PROVIDER_KEY in environment or use Passkey authentication.' };
     }
 
+    if (cleanEndpoint === '/auth/passkey/register-options' || cleanEndpoint === '/auth/passkey/auth-options') {
+      const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+      return {
+        success: true,
+        challengeId: 'CHALLENGE-' + Date.now(),
+        options: {
+          rp: { name: 'SECURE Platform', id: currentHost },
+          rpId: currentHost,
+          challenge: 'dGhpcy1pcy1hLW1vY2stY2hhbGxlbmdlLWZvci1zZWN1cmUtcGxhdGZvcm0',
+          user: { id: 'VVNSLVNVPVItMDE', name: 'karthik@secureroll.edu', displayName: 'Karthik' },
+          pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+          timeout: 60000,
+          authenticatorSelection: { userVerification: 'preferred' }
+        }
+      };
+    }
+
     if (cleanEndpoint === '/attendance/sessions/active') {
       return {
         success: true,

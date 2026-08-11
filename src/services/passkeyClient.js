@@ -29,15 +29,33 @@ export const checkPasskeySupport = async () => {
 };
 
 /**
+ * Dynamically sanitize RP ID to match current browser hostname (e.g. karthikhruth11-hash.github.io)
+ */
+const sanitizeOptionsRpId = (options) => {
+  if (!options) return options;
+  const currentHostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+  
+  const sanitized = { ...options };
+  if (sanitized.rp) {
+    sanitized.rp = { ...sanitized.rp, id: currentHostname };
+  }
+  if (sanitized.rpId) {
+    sanitized.rpId = currentHostname;
+  }
+  return sanitized;
+};
+
+/**
  * Register a new Passkey on device
  */
 export const registerNewPasskey = async (deviceName = 'Primary Device') => {
   try {
     // 1. Get options from server
     const { options } = await apiGetPasskeyRegOptions();
+    const cleanOptions = sanitizeOptionsRpId(options);
 
     // 2. Trigger browser WebAuthn prompt
-    const attestation = await startRegistration(options);
+    const attestation = await startRegistration(cleanOptions);
 
     // 3. Send assertion back to server for cryptographic verification
     const result = await apiVerifyPasskeyReg(attestation, deviceName);
@@ -58,9 +76,10 @@ export const authenticateWithPasskey = async (emailOrCollegeId = null) => {
   try {
     // 1. Get options from server
     const { options, challengeId } = await apiGetPasskeyAuthOptions(emailOrCollegeId);
+    const cleanOptions = sanitizeOptionsRpId(options);
 
     // 2. Trigger browser WebAuthn authentication prompt
-    const assertion = await startAuthentication(options);
+    const assertion = await startAuthentication(cleanOptions);
 
     // 3. Send assertion back to server for cryptographic verification
     const result = await apiVerifyPasskeyAuth(challengeId, assertion);
