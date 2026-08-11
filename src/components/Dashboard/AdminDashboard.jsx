@@ -10,10 +10,11 @@ import jsPDF from 'jspdf';
 import { 
   getUsers, getAttendanceRecords, getLeaveRequests, getOrganizations, 
   updateUserVerification, updateLeaveStatus, addNewOrganization, deleteUser,
-  deleteAttendanceRecord, clearAllDummyData
+  deleteAttendanceRecord, clearAllDummyData, addNewMemberDirectly, updateMemberDetails,
+  addManualAttendanceRecord, updateAttendanceRecord, updateOrganizationDetails
 } from '../../services/mockDataService';
 
-import { getAuditLogs, decryptSensitiveData } from '../../services/securityService';
+import { getAuditLogs, decryptSensitiveData, resetDeviceAttempts } from '../../services/securityService';
 import AttendanceScannerKiosk from '../Attendance/AttendanceScannerKiosk';
 
 export default function AdminDashboard({ user }) {
@@ -25,11 +26,32 @@ export default function AdminDashboard({ user }) {
   const [decryptedValue, setDecryptedValue] = useState('');
   const [showKioskModal, setShowKioskModal] = useState(false);
   const [showAddOrgModal, setShowAddOrgModal] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [showManualAttModal, setShowManualAttModal] = useState(false);
+  const [showEditMemberModal, setShowEditMemberModal] = useState(false);
+  const [showEditOrgModal, setShowEditOrgModal] = useState(false);
 
   // New Org Form
   const [newOrgName, setNewOrgName] = useState('');
   const [newOrgCode, setNewOrgCode] = useState('');
   const [newOrgType, setNewOrgType] = useState('Company');
+
+  // New Member Form
+  const [newMemName, setNewMemName] = useState('');
+  const [newMemRoll, setNewMemRoll] = useState('');
+  const [newMemEmail, setNewMemEmail] = useState('');
+  const [newMemRole, setNewMemRole] = useState('MEMBER');
+  const [newMemPass, setNewMemPass] = useState('pass123');
+
+  // Manual Attendance Form
+  const [attMemberId, setAttMemberId] = useState('');
+  const [attDate, setAttDate] = useState(new Date().toISOString().split('T')[0]);
+  const [attTime, setAttTime] = useState('09:00 AM');
+  const [attStatus, setAttStatus] = useState('PRESENT');
+  const [attLocation, setAttLocation] = useState('Main Office Entrance');
+
+  // Edit Member Target
+  const [editingMember, setEditingMember] = useState(null);
 
   // Data State
   const [usersList, setUsersList] = useState(getUsers());
@@ -43,6 +65,63 @@ export default function AdminDashboard({ user }) {
     type: 'Organization',
     code: 'MYORG',
     logo: '🏢'
+  };
+
+  // Create New Member Submit
+  const handleCreateMemberSubmit = async (e) => {
+    e.preventDefault();
+    if (!newMemName) return;
+    await addNewMemberDirectly({
+      name: newMemName,
+      rollNumber: newMemRoll || 'MEM-' + Math.floor(100 + Math.random() * 900),
+      email: newMemEmail || `member-${Date.now()}@secureroll.org`,
+      role: newMemRole,
+      orgId: selectedOrgId,
+      password: newMemPass
+    });
+    setUsersList(getUsers());
+    setShowAddMemberModal(false);
+    setNewMemName('');
+    setNewMemRoll('');
+    setNewMemEmail('');
+  };
+
+  // Manual Attendance Submit
+  const handleManualAttendanceSubmit = (e) => {
+    e.preventDefault();
+    const member = usersList.find(u => u.id === attMemberId) || orgUsers[0];
+    if (!member) return;
+
+    addManualAttendanceRecord({
+      userId: member.id,
+      userName: member.name,
+      rollNumber: member.rollNumber,
+      orgId: selectedOrgId,
+      date: attDate,
+      time: attTime,
+      status: attStatus,
+      method: 'MASTER_ADMIN_OVERRIDE',
+      location: attLocation
+    });
+
+    setAttendanceList(getAttendanceRecords());
+    setShowManualAttModal(false);
+  };
+
+  // Update Member Submit
+  const handleUpdateMemberSubmit = (e) => {
+    e.preventDefault();
+    if (!editingMember) return;
+    updateMemberDetails(editingMember.id, editingMember);
+    setUsersList(getUsers());
+    setShowEditMemberModal(false);
+    setEditingMember(null);
+  };
+
+  // Reset Security Locks
+  const handleUnfreezeSecurityLockout = () => {
+    resetDeviceAttempts();
+    alert('⚡ Security Lockout Sentinel Reset Successfully! All device freezes cleared.');
   };
 
   // Filtered by selected Organization safely
@@ -188,6 +267,43 @@ export default function AdminDashboard({ user }) {
   return (
     <div className="space-y-8">
       
+      {/* ⚡ MASTER ADMIN GOD MODE CONTROL BAR */}
+      <div className="p-4 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-cyan-500/50 shadow-2xl flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl bg-cyan-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-md shadow-cyan-500/30">
+            ⚡
+          </div>
+          <div>
+            <p className="text-xs font-black text-white uppercase tracking-wider font-outfit">MASTER CONTROL SUITE</p>
+            <p className="text-[10px] text-cyan-400 font-mono">100% Full System Privilege Active</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+          <button
+            onClick={() => setShowAddMemberModal(true)}
+            className="py-2 px-3 rounded-xl bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition-colors shadow-md shadow-cyan-500/20 flex items-center gap-1.5"
+          >
+            ➕ Add Member / Staff
+          </button>
+
+          <button
+            onClick={() => setShowManualAttModal(true)}
+            className="py-2 px-3 rounded-xl bg-blue-600 text-white hover:bg-blue-500 transition-colors shadow-md flex items-center gap-1.5"
+          >
+            📅 Manual Attendance Entry
+          </button>
+
+          <button
+            onClick={handleUnfreezeSecurityLockout}
+            className="py-2 px-3 rounded-xl bg-purple-600/30 border border-purple-500/40 text-purple-300 hover:bg-purple-600/40 transition-colors flex items-center gap-1.5"
+            title="Clear any 24hr security device freeze"
+          >
+            🔓 Reset Device Lockout
+          </button>
+        </div>
+      </div>
+
       {/* Top Header & Org Switcher */}
       <div className="glass-panel rounded-3xl p-6 border border-cyan-500/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-3">
@@ -587,6 +703,170 @@ export default function AdminDashboard({ user }) {
                   className="py-2 px-5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold shadow-lg shadow-cyan-500/20"
                 >
                   Save Organization
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Member Modal */}
+      {showAddMemberModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-md rounded-3xl p-6 border border-cyan-500/30 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-cyan-400" /> Create Member / Staff Profile
+              </h3>
+              <button onClick={() => setShowAddMemberModal(false)} className="text-slate-400 hover:text-white p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateMemberSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="text-slate-300 font-semibold mb-1 block">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Vikramaditya Singh"
+                  value={newMemName}
+                  onChange={(e) => setNewMemName(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-300 font-semibold mb-1 block">Roll / Employee ID</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. EMP-1092"
+                    value={newMemRoll}
+                    onChange={(e) => setNewMemRoll(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-semibold mb-1 block">Role Level</label>
+                  <select
+                    value={newMemRole}
+                    onChange={(e) => setNewMemRole(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-bold"
+                  >
+                    <option value="MEMBER">Member / Student / Employee</option>
+                    <option value="SUB_ADMIN">HR / Sub-Admin Manager</option>
+                    <option value="ADMIN">Super Admin</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold mb-1 block">Email Address</label>
+                <input
+                  type="email"
+                  placeholder="vikram@enterprise.org"
+                  value={newMemEmail}
+                  onChange={(e) => setNewMemEmail(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold mb-1 block">Initial Password</label>
+                <input
+                  type="text"
+                  value={newMemPass}
+                  onChange={(e) => setNewMemPass(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowAddMemberModal(false)} className="py-2 px-4 rounded-xl bg-slate-800 text-slate-300 font-semibold">
+                  Cancel
+                </button>
+                <button type="submit" className="py-2 px-5 rounded-xl bg-cyan-500 text-slate-950 font-bold shadow-lg shadow-cyan-500/20">
+                  Create Member
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Attendance Entry Modal */}
+      {showManualAttModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-md rounded-3xl p-6 border border-cyan-500/30 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-cyan-400" /> Manual Attendance Override Entry
+              </h3>
+              <button onClick={() => setShowManualAttModal(false)} className="text-slate-400 hover:text-white p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleManualAttendanceSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="text-slate-300 font-semibold mb-1 block">Select Member / Employee</label>
+                <select
+                  value={attMemberId}
+                  onChange={(e) => setAttMemberId(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-cyan-500 font-bold"
+                >
+                  <option value="">-- Choose Member --</option>
+                  {orgUsers.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.rollNumber})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-300 font-semibold mb-1 block">Date</label>
+                  <input
+                    type="date"
+                    value={attDate}
+                    onChange={(e) => setAttDate(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-semibold mb-1 block">Attendance Status</label>
+                  <select
+                    value={attStatus}
+                    onChange={(e) => setAttStatus(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-bold"
+                  >
+                    <option value="PRESENT">PRESENT</option>
+                    <option value="LATE">LATE</option>
+                    <option value="ABSENT">ABSENT</option>
+                    <option value="ON_LEAVE">ON LEAVE</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold mb-1 block">Time Stamp</label>
+                <input
+                  type="text"
+                  placeholder="09:00:00 AM"
+                  value={attTime}
+                  onChange={(e) => setAttTime(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowManualAttModal(false)} className="py-2 px-4 rounded-xl bg-slate-800 text-slate-300 font-semibold">
+                  Cancel
+                </button>
+                <button type="submit" className="py-2 px-5 rounded-xl bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20">
+                  Record Attendance
                 </button>
               </div>
             </form>

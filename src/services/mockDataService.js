@@ -370,17 +370,121 @@ export const deleteAttendanceRecord = (recordId) => {
   return records;
 };
 
+// Add New Member Directly by Master Admin
+export const addNewMemberDirectly = async ({ name, rollNumber, email, role = 'MEMBER', orgId, phone = '+91 9999900000', password = 'pass123' }) => {
+  const users = getUsers();
+  const orgs = getOrganizations();
+  const targetOrg = orgs.find(o => o.id === orgId) || orgs[0] || { id: orgId, name: 'Organization' };
+  
+  const encryptedAadhar = await encryptSensitiveData('123456789012');
+  const passwordHash = await hashSHA256(password);
+
+  const newUser = {
+    id: 'USR-' + Math.random().toString(36).substr(2, 7).toUpperCase(),
+    orgId: targetOrg.id,
+    orgName: targetOrg.name,
+    rollNumber: rollNumber || 'EMP-' + Math.floor(1000 + Math.random() * 9000),
+    name: name || 'New Member',
+    email: email || `user-${Date.now()}@secureroll.org`,
+    passwordHash,
+    role,
+    aadharEncrypted: encryptedAadhar,
+    aadharMasked: maskAadharID('123456789012'),
+    phone,
+    biometricsEnrolled: true,
+    faceTemplate: 'TEMPLATE_HASH_FACE_' + Date.now(),
+    fingerprintTemplate: 'TEMPLATE_HASH_FP_' + Date.now(),
+    idCardVerified: true,
+    verificationStatus: 'VERIFIED',
+    createdAt: new Date().toISOString()
+  };
+
+  users.unshift(newUser);
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+
+  await addAuditLog({
+    action: 'MASTER_MEMBER_CREATED',
+    userId: newUser.id,
+    userRole: role,
+    orgId: targetOrg.id,
+    details: `Master Admin created member ${newUser.name} (${newUser.rollNumber})`
+  });
+
+  return newUser;
+};
+
+// Update Any Member Details
+export const updateMemberDetails = (userId, updates) => {
+  const users = getUsers();
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx !== -1) {
+    users[idx] = { ...users[idx], ...updates };
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    return users[idx];
+  }
+  return null;
+};
+
+// Add Manual Attendance Record by Master Admin
+export const addManualAttendanceRecord = ({ userId, userName, rollNumber, orgId, date, time, status = 'PRESENT', method = 'ADMIN_MANUAL', location = 'Manual Overridden Entry' }) => {
+  const records = getAttendanceRecords();
+  const todayStr = date || new Date().toISOString().split('T')[0];
+  const timeStr = time || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+  const newRecord = {
+    id: 'ATT-' + Math.random().toString(36).substr(2, 9).toUpperCase(),
+    userId,
+    userName,
+    rollNumber,
+    orgId,
+    date: todayStr,
+    time: timeStr,
+    status,
+    method,
+    gpsVerified: true,
+    location
+  };
+
+  records.unshift(newRecord);
+  localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(records));
+  return newRecord;
+};
+
+// Update Attendance Record
+export const updateAttendanceRecord = (recordId, updates) => {
+  const records = getAttendanceRecords();
+  const idx = records.findIndex(r => r.id === recordId);
+  if (idx !== -1) {
+    records[idx] = { ...records[idx], ...updates };
+    localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(records));
+    return records[idx];
+  }
+  return null;
+};
+
+// Update Organization Details
+export const updateOrganizationDetails = (orgId, updates) => {
+  const orgs = getOrganizations();
+  const idx = orgs.findIndex(o => o.id === orgId);
+  if (idx !== -1) {
+    orgs[idx] = { ...orgs[idx], ...updates };
+    localStorage.setItem(ORGS_KEY, JSON.stringify(orgs));
+    return orgs[idx];
+  }
+  return null;
+};
+
 // Clear All Sample / Dummy Data & Start Fresh with Custom Data
 export const clearAllDummyData = () => {
   // Keep only current Admin user
   const users = getUsers();
-  const adminUser = users.find(u => u.role === 'ADMIN') || {
-    id: 'USR-ADMIN-01',
-    orgId: 'ORG-CUSTOM-01',
-    orgName: 'My Organization',
-    rollNumber: 'ADMIN-001',
-    name: 'Administrator',
-    email: 'admin@secureroll.org',
+  const adminUser = users.find(u => u.id === 'USR-ADMIN-KARTHIK' || u.name.toLowerCase() === 'karthik' || u.role === 'ADMIN') || {
+    id: 'USR-ADMIN-KARTHIK',
+    orgId: 'ORG-KARTHIK-01',
+    orgName: "Karthik's Enterprise Systems",
+    rollNumber: 'KARTHIK-001',
+    name: 'Karthik',
+    email: 'karthik@secureroll.org',
     role: 'ADMIN',
     biometricsEnrolled: true,
     verificationStatus: 'VERIFIED'
@@ -388,12 +492,12 @@ export const clearAllDummyData = () => {
 
   const customOrg = [
     {
-      id: adminUser.orgId || 'ORG-CUSTOM-01',
-      name: 'My Custom Organization',
-      type: 'Organization',
-      code: 'MYORG',
-      logo: '🏢',
-      location: 'Primary Center',
+      id: adminUser.orgId || 'ORG-KARTHIK-01',
+      name: "Karthik's Enterprise Systems",
+      type: 'Enterprise Company',
+      code: 'KSE',
+      logo: '⚡',
+      location: 'Karthik Headquarters & Campus',
       geoFence: { lat: 28.6273, lng: 77.3714, radiusMeters: 500 }
     }
   ];
@@ -403,4 +507,5 @@ export const clearAllDummyData = () => {
   localStorage.setItem(ATTENDANCE_KEY, JSON.stringify([]));
   localStorage.setItem(LEAVES_KEY, JSON.stringify([]));
 };
+
 
